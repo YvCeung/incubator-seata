@@ -40,13 +40,22 @@ console:
 seata:
   config:
     # support: nacos, consul, apollo, zk, etcd3
-    type: file
+    type: nacos
+    nacos:
+      server-addr: 127.0.0.1:8848
+      namespace: '3688929d-ed43-484d-b01c-1de748697ea4'
+      group: 'seata'
   registry:
     # support: nacos, eureka, redis, zk, consul, etcd3, sofa
-    type: file
-  store:
+    type: nacos
+    application: seata-server
+    server-addr: 127.0.0.1:8848
+    namespace: '3688929d-ed43-484d-b01c-1de748697ea4'
+    group: 'seata'
+    cluster: default
+  # store:
     # support: file 、 db 、 redis 、 raft
-    mode: file
+  #  mode: file
   #  server:
   #    service-port: 8091 #If not configured, the default is '${server.port} + 1000'
   security:
