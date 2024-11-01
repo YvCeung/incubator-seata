@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 server:
   port: 7091
 
@@ -61,11 +60,6 @@ seata:
     preferred-networks: 30.240.*
     metadata:
       weight: 100
-    seata:
-      server-addr: 127.0.0.1:8081
-      cluster: default
-      namespace: public
-      heartbeat-period: 5000
     nacos:
       application: seata-server
       server-addr: 127.0.0.1:8848
@@ -81,11 +75,6 @@ seata:
       #secret-key:
       ##3.The following configuration is used to deploy on Aliyun ECS or ACK without authentication
       #ram-role-name:
-    # store:
-      # support: file 、 db 、 redis 、 raft
-    #  mode: file
-    #  server:
-    #    service-port: 8091 #If not configured, the default is '${server.port} + 1000'
   security:
     secretKey: SeataSecretKey0c382ef121d778043159209298fd40bf3850a017
     tokenValidityInMilliseconds: 1800000

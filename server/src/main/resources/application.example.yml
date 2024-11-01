@@ -39,11 +39,11 @@ console:
 seata:
   config:
     # support: nacos 、 consul 、 apollo 、 zk  、 etcd3
-    type: file
+    type: nacos
     nacos:
       server-addr: 127.0.0.1:8848
-      namespace:
-      group: SEATA_GROUP
+      namespace: 3688929d-ed43-484d-b01c-1de748697ea4
+      group: seata
       context-path:
       ##1.The following configuration is for the open source version of Nacos
       username:
@@ -54,43 +54,17 @@ seata:
       ##3.The following configuration is used to deploy on Aliyun ECS or ACK without authentication
       #ram-role-name:
       data-id: seataServer.properties
-    consul:
-      server-addr: 127.0.0.1:8500
-      acl-token:
-      key: seata.properties
-    apollo:
-      appId: seata-server
-      apollo-meta: http://192.168.1.204:8801
-      apollo-config-service: http://192.168.1.204:8080
-      namespace: application
-      apollo-access-key-secret:
-      cluster: seata
-    zk:
-      server-addr: 127.0.0.1:2181
-      session-timeout: 6000
-      connect-timeout: 2000
-      username:
-      password:
-      node-path: /seata/seata.properties
-    etcd3:
-      server-addr: http://localhost:2379
-      key: seata.properties
   registry:
     # support: nacos 、 eureka 、 redis 、 zk  、 consul 、 etcd3 、 sofa 、 seata
-    type: file
+    type: nacos
     preferred-networks: 30.240.*
     metadata:
       weight: 100
-    seata:
-      server-addr: 127.0.0.1:8081
-      cluster: default
-      namespace: public
-      heartbeat-period: 5000
     nacos:
       application: seata-server
       server-addr: 127.0.0.1:8848
-      group: SEATA_GROUP
-      namespace:
+      group: seata
+      namespace: 3688929d-ed43-484d-b01c-1de748697ea4
       cluster: default
       context-path:
       ##1.The following configuration is for the open source version of Nacos
@@ -101,40 +75,6 @@ seata:
       #secret-key:
       ##3.The following configuration is used to deploy on Aliyun ECS or ACK without authentication
       #ram-role-name:
-    eureka:
-      service-url: http://localhost:8761/eureka
-      application: default
-      weight: 1
-    redis:
-      server-addr: localhost:6379
-      db: 0
-      password:
-      cluster: default
-      timeout: 0
-    zk:
-      cluster: default
-      server-addr: 127.0.0.1:2181
-      session-timeout: 6000
-      connect-timeout: 2000
-      username:
-      password:
-    consul:
-      cluster: default
-      server-addr: 127.0.0.1:8500
-      acl-token:
-    etcd3:
-      cluster: default
-      server-addr: http://localhost:2379
-    sofa:
-      server-addr: 127.0.0.1:9603
-      application: default
-      region: DEFAULT_ZONE
-      datacenter: DefaultDataCenter
-      cluster: default
-      group: SEATA_GROUP
-      address-wait-time: 3000
-
-
   server:
     service-port: 8091 #If not configured, the default is '${server.port} + 1000'
     max-commit-retry-timeout: -1
