@@ -232,7 +232,7 @@
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
-            <version>${mysql8.jdbc.version}</version>
+            <version>8.0.27</version>
         </dependency>
 <!--        <dependency>
             <groupId>org.mariadb.jdbc</groupId>
