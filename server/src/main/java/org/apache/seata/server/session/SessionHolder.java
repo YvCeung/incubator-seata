@@ -104,6 +104,7 @@ public class SessionHolder {
         LOGGER.info("use session store mode: {}", sessionMode.getName());
         DISTRIBUTED_LOCKER = DistributedLockerFactory.getDistributedLocker(sessionMode.getName());
         if (SessionMode.DB.equals(sessionMode)) {
+            //EnhancedServiceLoader.load()方法，其实就是用了java的SPI机制
             ROOT_SESSION_MANAGER = EnhancedServiceLoader.load(SessionManager.class, SessionMode.DB.getName());
             reload(sessionMode);
 

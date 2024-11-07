@@ -53,6 +53,9 @@ import static org.apache.seata.spring.boot.autoconfigure.StarterConstants.REGIST
 @Component("seataServer")
 public class Server {
     private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
+    static {
+        LOGGER.info("====Server is starting====");
+    }
 
     @Resource
     ServerInstance serverInstance;
