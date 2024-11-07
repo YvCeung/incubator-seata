@@ -72,11 +72,13 @@ public class ParameterParser {
      */
     private void init(String[] args) {
         try {
+            //这个貌似是用户启动的时候手输的一些参数，比如-h -p之类的
             getCommandParameters(args);
             getEnvParameters();
             if (StringUtils.isNotBlank(seataEnv)) {
                 System.setProperty(ENV_PROPERTY_KEY, seataEnv);
             }
+            //从配置文件中获取参数
             StoreConfig.setStartupParameter(storeMode, sessionStoreMode, lockStoreMode);
         } catch (ParameterException e) {
             printError(e);

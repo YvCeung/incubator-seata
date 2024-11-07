@@ -81,7 +81,7 @@ public class ServerRunner implements CommandLineRunner, DisposableBean,
 
     @Override
     public void destroy() throws Exception {
-
+        LOGGER.info("====server runner is stop===");
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("destoryAll starting");
         }
