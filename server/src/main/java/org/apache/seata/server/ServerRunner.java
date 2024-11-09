@@ -50,6 +50,7 @@ public class ServerRunner implements CommandLineRunner, DisposableBean,
 
     private static final List<Disposable> DISPOSABLE_LIST = new CopyOnWriteArrayList<>();
 
+    //Disposable 一次性的
     public static void addDisposable(Disposable disposable) {
         DISPOSABLE_LIST.add(disposable);
     }

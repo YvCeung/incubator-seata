@@ -226,6 +226,7 @@ public class DefaultCoordinator extends AbstractTCInboundHandler implements Tran
     }
 
     public static DefaultCoordinator getInstance(RemotingServer remotingServer) {
+        //使用DCL机制获取到单例对象
         if (null == instance) {
             synchronized (DefaultCoordinator.class) {
                 if (null == instance) {
@@ -606,22 +607,27 @@ public class DefaultCoordinator extends AbstractTCInboundHandler implements Tran
      * Init.
      */
     public void init() {
+        //处理重试回滚
         retryRollbacking.scheduleAtFixedRate(
             () -> SessionHolder.distributedLockAndExecute(RETRY_ROLLBACKING, this::handleRetryRollbacking), 0,
             ROLLBACKING_RETRY_PERIOD, TimeUnit.MILLISECONDS);
 
+        //处理重试提交
         retryCommitting.scheduleAtFixedRate(
             () -> SessionHolder.distributedLockAndExecute(RETRY_COMMITTING, this::handleRetryCommitting), 0,
             COMMITTING_RETRY_PERIOD, TimeUnit.MILLISECONDS);
 
+        //处理异步提交
         asyncCommitting.scheduleAtFixedRate(
             () -> SessionHolder.distributedLockAndExecute(ASYNC_COMMITTING, this::handleAsyncCommitting), 0,
             ASYNC_COMMITTING_RETRY_PERIOD, TimeUnit.MILLISECONDS);
 
+        //超时检查
         timeoutCheck.scheduleAtFixedRate(
             () -> SessionHolder.distributedLockAndExecute(TX_TIMEOUT_CHECK, this::timeoutCheck), 0,
             TIMEOUT_RETRY_PERIOD, TimeUnit.MILLISECONDS);
 
+        //回滚日志的删除
         undoLogDelete.scheduleAtFixedRate(
             () -> SessionHolder.distributedLockAndExecute(UNDOLOG_DELETE, this::undoLogDelete),
             UNDO_LOG_DELAY_DELETE_PERIOD, UNDO_LOG_DELETE_PERIOD, TimeUnit.MILLISECONDS);

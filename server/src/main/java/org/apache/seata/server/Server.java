@@ -96,6 +96,7 @@ public class Server {
         ConfigurableListableBeanFactory beanFactory =
                 ((GenericWebApplicationContext) ObjectHolder.INSTANCE
                         .getObject(OBJECT_KEY_SPRING_APPLICATION_CONTEXT)).getBeanFactory();
+        //初始化事务协调器。事务处理的核心逻辑
         DefaultCoordinator coordinator = DefaultCoordinator.getInstance(nettyRemotingServer);
         if (coordinator instanceof ApplicationListener) {
             beanFactory.registerSingleton(NettyRemotingServer.class.getName(), nettyRemotingServer);
@@ -106,6 +107,7 @@ public class Server {
         //log store mode : file, db, redis
         SessionHolder.init();
         LockerManagerFactory.init();
+        //开启一堆后台线程去执行和事务相关的任务
         coordinator.init();
         nettyRemotingServer.setHandler(coordinator);
 
