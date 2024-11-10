@@ -59,6 +59,7 @@ public final class ConfigurationFactory {
     public static volatile FileConfiguration ORIGIN_FILE_INSTANCE = null;
 
     static {
+        //主要是加载FileConfiguration，读registry.conf文件里的内容
         initOriginConfiguration();
         load();
         maybeNeedOriginFileInstance();
@@ -111,7 +112,7 @@ public final class ConfigurationFactory {
 
     /**
      * Gets instance.
-     *
+     * 这段代码执行前会先执行static代码块里面的内容
      * @return the instance
      */
     public static Configuration getInstance() {
