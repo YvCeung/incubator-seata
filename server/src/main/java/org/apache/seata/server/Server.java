@@ -114,6 +114,7 @@ public class Server {
         serverInstance.serverInstanceInit();
         // let ServerRunner do destroy instead ShutdownHook, see https://github.com/seata/seata/issues/4028
         ServerRunner.addDisposable(coordinator);
+        //初始化netty服务，监听端口并阻塞
         nettyRemotingServer.init();
     }
 }
