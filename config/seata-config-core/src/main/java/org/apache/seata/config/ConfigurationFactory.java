@@ -59,6 +59,7 @@ public final class ConfigurationFactory {
     public static volatile FileConfiguration ORIGIN_FILE_INSTANCE = null;
 
     static {
+        //这段代码貌似点击启动按钮的时候就开始执行了
         //主要是加载FileConfiguration，读registry.conf文件里的内容
         initOriginConfiguration();
         load();
