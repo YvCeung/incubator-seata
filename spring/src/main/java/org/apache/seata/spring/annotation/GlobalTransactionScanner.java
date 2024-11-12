@@ -106,6 +106,7 @@ public class GlobalTransactionScanner extends AbstractAutoProxyCreator
 
     private static ConfigurableListableBeanFactory beanFactory;
 
+    //方法拦截器
     private MethodInterceptor interceptor;
 
     private final String applicationId;
@@ -291,6 +292,8 @@ public class GlobalTransactionScanner extends AbstractAutoProxyCreator
      * Corresponding interceptor:
      * @see org.apache.seata.rm.tcc.interceptor.TccActionInterceptorHandler // the interceptor of TCC mode
      */
+    //重写了父类的方法，对bean进行增强，且容器中的所有bean都会走到这个逻辑
+    //说白了就是，被注解修饰之后就会走到这个地方
     @Override
     protected Object wrapIfNecessary(Object bean, String beanName, Object cacheKey) {
         // do checkers
@@ -315,9 +318,11 @@ public class GlobalTransactionScanner extends AbstractAutoProxyCreator
                 interceptor = new AdapterSpringSeataInterceptor(proxyInvocationHandler);
 
                 LOGGER.info("Bean [{}] with name [{}] would use interceptor [{}]", bean.getClass().getName(), beanName, interceptor.toString());
+                //判断是否是代理对象
                 if (!AopUtils.isAopProxy(bean)) {
                     bean = super.wrapIfNecessary(bean, beanName, cacheKey);
                 } else {
+                    //已经是代理对象，反射获取代理类中的已经存在的拦截器组合，然后添加到该集合中
                     AdvisedSupport advised = SpringProxyUtils.getAdvisedSupport(bean);
                     Advisor[] advisor = buildAdvisors(beanName, getAdvicesAndAdvisorsForBean(null, null, null));
                     int pos;
