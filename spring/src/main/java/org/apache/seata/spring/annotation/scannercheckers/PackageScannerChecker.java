@@ -44,6 +44,9 @@ public class PackageScannerChecker implements ScannerChecker {
      *
      * @param packages the packages
      */
+    /**
+     * 原文注释：The scan packages. If empty, will scan all beans.
+     */
     public static void addScannablePackages(String... packages) {
         if (ArrayUtils.isNotEmpty(packages)) {
             synchronized (SCANNABLE_PACKAGE_SET) {
@@ -62,7 +65,7 @@ public class PackageScannerChecker implements ScannerChecker {
             // if empty, pass this checker
             return true;
         }
-
+        //获取全路径类名com.xxx.xxx.class.java
         String className = bean.getClass().getName();
         for (String pkg : SCANNABLE_PACKAGE_SET) {
             if (className.startsWith(pkg)) {
