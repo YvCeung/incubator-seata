@@ -292,16 +292,17 @@ public class GlobalTransactionScanner extends AbstractAutoProxyCreator
      * Corresponding interceptor:
      * @see org.apache.seata.rm.tcc.interceptor.TccActionInterceptorHandler // the interceptor of TCC mode
      */
-    //重写了父类的方法，对bean进行增强，且容器中的所有bean都会走到这个逻辑
-    //说白了就是，被注解修饰之后就会走到这个地方
+    //重写了父类的方法，自定义对bean的代理逻辑（容器中的所有bean都会走到这个逻辑）
     @Override
     protected Object wrapIfNecessary(Object bean, String beanName, Object cacheKey) {
         // do checkers
+        //自定义的一些检查规则，如果命中这些规则就不代理
         if (!doCheckers(bean, beanName)) {
             return bean;
         }
 
         try {
+            //防止重复代理
             synchronized (PROXYED_SET) {
                 if (PROXYED_SET.contains(beanName)) {
                     return bean;
@@ -309,20 +310,23 @@ public class GlobalTransactionScanner extends AbstractAutoProxyCreator
                 if (!NEED_ENHANCE_BEAN_NAME_SET.contains(beanName)) {
                     return bean;
                 }
+
+
                 interceptor = null;
                 ProxyInvocationHandler proxyInvocationHandler = DefaultInterfaceParser.get().parserInterfaceToProxy(bean, beanName);
                 if (proxyInvocationHandler == null) {
                     return bean;
                 }
-
+                //创建拦截器，走到次数说明已经需要增强了
                 interceptor = new AdapterSpringSeataInterceptor(proxyInvocationHandler);
 
                 LOGGER.info("Bean [{}] with name [{}] would use interceptor [{}]", bean.getClass().getName(), beanName, interceptor.toString());
-                //判断是否是代理对象
+                //如果当前 Bean 不是 AOP 代理对象：
                 if (!AopUtils.isAopProxy(bean)) {
                     bean = super.wrapIfNecessary(bean, beanName, cacheKey);
+                //如果当前 Bean 已经是代理对象
                 } else {
-                    //已经是代理对象，反射获取代理类中的已经存在的拦截器组合，然后添加到该集合中
+                    //通过反射获取代理对象的增强逻辑（AdvisedSupport），并将新的拦截器（Advisor）添加到代理对象中。
                     AdvisedSupport advised = SpringProxyUtils.getAdvisedSupport(bean);
                     Advisor[] advisor = buildAdvisors(beanName, getAdvicesAndAdvisorsForBean(null, null, null));
                     int pos;
@@ -332,6 +336,7 @@ public class GlobalTransactionScanner extends AbstractAutoProxyCreator
                         advised.addAdvisor(pos, avr);
                     }
                 }
+                //将代理后的bean放到集合中，避免重复处理
                 PROXYED_SET.add(beanName);
                 return bean;
             }
