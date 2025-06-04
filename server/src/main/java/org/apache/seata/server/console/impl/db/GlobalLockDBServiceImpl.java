@@ -23,6 +23,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.PostConstruct;
 import javax.sql.DataSource;
 
 import org.apache.seata.common.ConfigurationKeys;
@@ -39,7 +40,9 @@ import org.apache.seata.core.store.db.sql.lock.LockStoreSqlFactory;
 import org.apache.seata.server.console.param.GlobalLockParam;
 import org.apache.seata.server.console.service.GlobalLockService;
 import org.apache.seata.server.console.vo.GlobalLockVO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import static org.apache.seata.common.DefaultValues.DEFAULT_LOCK_DB_TABLE;
@@ -59,6 +62,16 @@ public class GlobalLockDBServiceImpl implements GlobalLockService {
     private String dbType;
 
     private DataSource dataSource;
+
+    @Autowired
+    private Environment env;
+
+    @PostConstruct
+    public void check() {
+        System.out.println("lockMode = " + env.getProperty("lockMode"));
+        System.out.println("store.lock.mode = " + env.getProperty("store.lock.mode"));
+    }
+
 
     public GlobalLockDBServiceImpl() {
         Configuration configuration = ConfigurationFactory.getInstance();

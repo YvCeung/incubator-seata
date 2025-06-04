@@ -74,6 +74,7 @@ public class SeataPropertiesLoader implements ApplicationContextInitializer<Conf
             environment.getPropertySources().addLast(new PropertiesPropertySource("seataOldConfig", properties));
         }
         // Load by priority
+        // tag-在这里设置的lockMode的属性
         System.setProperty("sessionMode", StoreConfig.getSessionMode().getName());
         System.setProperty("lockMode", StoreConfig.getLockMode().getName());
     }

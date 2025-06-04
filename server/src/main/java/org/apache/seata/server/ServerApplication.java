@@ -18,15 +18,22 @@ package org.apache.seata.server;
 
 import java.io.IOException;
 
+import org.apache.seata.console.Application;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 
 /**
  */
 @SpringBootApplication(scanBasePackages = {"org.apache.seata"})
 public class ServerApplication {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServerApplication.class);
+
     public static void main(String[] args) throws IOException {
         // run the spring-boot application
-        SpringApplication.run(ServerApplication.class, args);
+        ConfigurableApplicationContext applicationContext = SpringApplication.run(ServerApplication.class, args);
+        LOGGER.info("aaa");
     }
 }
