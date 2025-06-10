@@ -16,6 +16,7 @@
  */
 package org.apache.seata.server;
 
+import java.util.Optional;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -31,16 +32,14 @@ import org.apache.seata.config.ConfigurationFactory;
 import org.apache.seata.core.rpc.netty.NettyRemotingServer;
 import org.apache.seata.core.rpc.netty.NettyServerConfig;
 import org.apache.seata.server.coordinator.DefaultCoordinator;
-import org.apache.seata.server.instance.ServerInstance;
+import org.apache.seata.server.instance.SeataInstanceStrategy;
 import org.apache.seata.server.lock.LockerManagerFactory;
 import org.apache.seata.server.metrics.MetricsManager;
 import org.apache.seata.server.session.SessionHolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ApplicationListener;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.support.GenericWebApplicationContext;
 
 
 import static org.apache.seata.common.Constants.OBJECT_KEY_SPRING_APPLICATION_CONTEXT;
@@ -52,13 +51,9 @@ import static org.apache.seata.spring.boot.autoconfigure.StarterConstants.REGIST
  */
 @Component("seataServer")
 public class Server {
-    private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
-    static {
-        LOGGER.info("====Server is starting====");
-    }
 
     @Resource
-    ServerInstance serverInstance;
+    SeataInstanceStrategy seataInstanceStrategy;
 
     /**
      * The entry point of application.
@@ -94,27 +89,23 @@ public class Server {
         XID.setPort(nettyRemotingServer.getListenPort());
         UUIDGenerator.init(parameterParser.getServerNode());
         ConfigurableListableBeanFactory beanFactory =
-                ((GenericWebApplicationContext) ObjectHolder.INSTANCE
+                ((ConfigurableApplicationContext) ObjectHolder.INSTANCE
                         .getObject(OBJECT_KEY_SPRING_APPLICATION_CONTEXT)).getBeanFactory();
-        //初始化事务协调器。事务处理的核心逻辑
         DefaultCoordinator coordinator = DefaultCoordinator.getInstance(nettyRemotingServer);
         if (coordinator instanceof ApplicationListener) {
             beanFactory.registerSingleton(NettyRemotingServer.class.getName(), nettyRemotingServer);
             beanFactory.registerSingleton(DefaultCoordinator.class.getName(), coordinator);
-            ((GenericWebApplicationContext) ObjectHolder.INSTANCE.getObject(OBJECT_KEY_SPRING_APPLICATION_CONTEXT))
+            ((ConfigurableApplicationContext) ObjectHolder.INSTANCE.getObject(OBJECT_KEY_SPRING_APPLICATION_CONTEXT))
                     .addApplicationListener((ApplicationListener<?>) coordinator);
         }
         //log store mode : file, db, redis
         SessionHolder.init();
         LockerManagerFactory.init();
-        //开启一堆后台线程去执行和事务相关的任务
         coordinator.init();
         nettyRemotingServer.setHandler(coordinator);
-
-        serverInstance.serverInstanceInit();
+        Optional.ofNullable(seataInstanceStrategy).ifPresent(SeataInstanceStrategy::init);
         // let ServerRunner do destroy instead ShutdownHook, see https://github.com/seata/seata/issues/4028
         ServerRunner.addDisposable(coordinator);
-        //初始化netty服务，监听端口并阻塞
         nettyRemotingServer.init();
     }
 }

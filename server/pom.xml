@@ -35,7 +35,6 @@
         <spring-boot-for-server.version>2.7.18</spring-boot-for-server.version>
         <spring-framework-for-server.version>5.3.39</spring-framework-for-server.version>
         <snakeyaml-for-server.version>2.0</snakeyaml-for-server.version>
-        <tomcat-embed.version>9.0.90</tomcat-embed.version>
     </properties>
 
     <dependencyManagement>
@@ -93,56 +92,18 @@
                 <artifactId>snakeyaml</artifactId>
                 <version>${snakeyaml-for-server.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-core</artifactId>
-                <version>${tomcat-embed.version}</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
-        <dependency>
-            <groupId>org.apache.tomcat.embed</groupId>
-            <artifactId>tomcat-embed-core</artifactId>
-            <version>${tomcat-embed.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.tomcat.embed</groupId>
-            <artifactId>tomcat-embed-el</artifactId>
-            <version>${tomcat-embed.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.tomcat.embed</groupId>
-            <artifactId>tomcat-embed-websocket</artifactId>
-            <version>${tomcat-embed.version}</version>
-        </dependency>
-        <!-- springboot web -->
+        <!-- springboot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-            <exclusions>
-                <exclusion>
-                    <artifactId>log4j-to-slf4j</artifactId>
-                    <groupId>org.apache.logging.log4j</groupId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.apache.tomcat.embed</groupId>
-                    <artifactId>tomcat-embed-core</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.apache.tomcat.embed</groupId>
-                    <artifactId>tomcat-embed-websocket</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.apache.tomcat.embed</groupId>
-                    <artifactId>tomcat-embed-el</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.yaml</groupId>
-                    <artifactId>snakeyaml</artifactId>
-                </exclusion>
-            </exclusions>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
         </dependency>
         <dependency>
             <groupId>org.yaml</groupId>
@@ -165,7 +126,10 @@
             <artifactId>seata-spring-autoconfigure-server</artifactId>
             <version>${project.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>seata-core</artifactId>
@@ -203,6 +167,7 @@
             <artifactId>seata-metrics-all</artifactId>
             <version>${project.version}</version>
         </dependency>
+<!--
 
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -210,6 +175,7 @@
             <version>${project.version}</version>
         </dependency>
 
+-->
         <!-- for database -->
         <dependency>
             <groupId>com.alibaba</groupId>
@@ -324,10 +290,12 @@
             <groupId>org.codehaus.janino</groupId>
             <artifactId>janino</artifactId>
         </dependency>
+
+        <!--rate limit-->
         <dependency>
-            <groupId>org.codehaus.jackson</groupId>
-            <artifactId>jackson-mapper-asl</artifactId>
-            <version>${jackson-mapper.version}</version>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk8-core</artifactId>
+            <version>${bucket4j.version}</version>
         </dependency>
     </dependencies>
 
@@ -362,31 +330,31 @@
                             <skip>${dependencies.copy.skip}</skip>
                         </configuration>
                     </execution>
-<!--                    <execution>-->
-<!--                        <id>copy-mysql</id>-->
-<!--                        <phase>package</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>copy</goal>-->
-<!--                        </goals>-->
-<!--                        <configuration>-->
-<!--                            <artifactItems>-->
-<!--                                <artifactItem>-->
-<!--                                    <groupId>mysql</groupId>-->
-<!--                                    <artifactId>mysql-connector-java</artifactId>-->
-<!--                                    <version>${mysql.jdbc.version}</version>-->
-<!--                                </artifactItem>-->
-<!--                                <artifactItem>-->
-<!--                                    <groupId>mysql</groupId>-->
-<!--                                    <artifactId>mysql-connector-java</artifactId>-->
-<!--                                    <version>${mysql8.jdbc.version}</version>-->
-<!--                                </artifactItem>-->
-<!--                            </artifactItems>-->
-<!--                            <outputDirectory>-->
-<!--                                ${project.build.directory}/lib/jdbc-->
-<!--                            </outputDirectory>-->
-<!--                            <skip>${dependencies.copy.skip}</skip>-->
-<!--                        </configuration>-->
-<!--                    </execution>-->
+                    <execution>
+                        <id>copy-mysql</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>mysql</groupId>
+                                    <artifactId>mysql-connector-java</artifactId>
+                                    <version>${mysql.jdbc.version}</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>mysql</groupId>
+                                    <artifactId>mysql-connector-java</artifactId>
+                                    <version>${mysql8.jdbc.version}</version>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>
+                                ${project.build.directory}/lib/jdbc
+                            </outputDirectory>
+                            <skip>${mysql.copy.skip}</skip>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
