@@ -36,4 +36,16 @@ class ProcessorPropertiesTest {
         Assertions.assertNull(processor.get("registry"));
         Assertions.assertNull(processor.get("null"));
     }
+
+    @Test
+    void processor2() throws IOException {
+        String properties = "store.redis.single.port=6379\n" +
+                "transport.type=TCP";
+
+        Properties processor = new ProcessorProperties().processor(properties);
+        // 整数自动会转换为字符串，但是不会丢失
+        Assertions.assertEquals("6379", processor.get("store.redis.single.port"));
+        Assertions.assertEquals("TCP", processor.get("transport.type"));
+
+    }
 }
