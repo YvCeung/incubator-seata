@@ -24,6 +24,7 @@ import okhttp3.FormBody;
 import okhttp3.Headers;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
@@ -32,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -42,6 +44,7 @@ public class Http5ClientUtil {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final OkHttpClient HTTP_CLIENT = new OkHttpClient.Builder()
+            .protocols(Collections.singletonList(Protocol.H2_PRIOR_KNOWLEDGE))
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .writeTimeout(10, TimeUnit.SECONDS)
