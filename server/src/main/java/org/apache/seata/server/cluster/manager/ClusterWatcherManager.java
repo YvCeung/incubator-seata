@@ -77,6 +77,7 @@ public class ClusterWatcherManager implements ClusterChangeListener {
                                         HTTP2_HEADERS_SENT.remove(watcher);
                                     } else if (!watcher.isDone()) {
                                         // Re-register if not done and not timeout
+                                        logger.info("当前watcher未超时，重复注册 group {} term {}", watcher.getGroup(), watcher.getTerm());
                                         registryWatcher(watcher);
                                     }
                                 }));
@@ -107,14 +108,42 @@ public class ClusterWatcherManager implements ClusterChangeListener {
             watcher.setDone(true);
         }
 
-        boolean isFirstResponse = !HTTP2_HEADERS_SENT.getOrDefault(watcher, false);
-        sendWatcherResponse(watcher, HttpResponseStatus.OK, false, isFirstResponse);
-        if (isFirstResponse && isHttp2) {
-            HTTP2_HEADERS_SENT.put(watcher, true);
+        // Check if channel is active before sending response
+        ChannelHandlerContext ctx = context != null ? context.getContext() : null;
+        if (ctx == null || !ctx.channel().isActive()) {
+            // Channel is not active, mark watcher as done to prevent infinite loop
+            watcher.setDone(true);
+            HTTP2_HEADERS_SENT.remove(watcher);
+            logger.warn(
+                    "Channel is not active for watcher on group {}, marking as done.", watcher.getGroup());
+            return;
         }
 
+        // Update watcher's term to match the latest GROUP_UPDATE_TIME so it can be re-registered correctly
+        String group = watcher.getGroup();
+        Long latestTerm = GROUP_UPDATE_TIME.get(group);
+        if (latestTerm != null && latestTerm > watcher.getTerm()) {
+            watcher.setTerm(latestTerm);
+        }
+
+        // For HTTP/2 streaming push: we need to work around OkHttpClient's limitation
+        // OkHttpClient's async callback only triggers when endStream=true
+        // However, if we end the stream with each push, we can't use the same stream for the next push
+        // 
+        // Solution: End the stream with each push, but reuse the same connection
+        // The server will handle the next event by sending a new response
+        // Since HTTP/2 allows multiple streams on the same connection, and we reuse the watcher,
+        // the next push will use a new stream but the same connection
+        sendWatcherResponse(watcher, HttpResponseStatus.OK, true, true);
+        // Clear headers sent flag since next push will be on a new stream
+        HTTP2_HEADERS_SENT.remove(watcher);
+
         // For HTTP/2, re-register the watcher to continue listening for future updates
-        if (isHttp2 && !watcher.isDone()) {
+        // Each push ends the stream (endStream=true), triggering client callback
+        // The next push will use a new stream on the same connection
+        // This allows the client to receive a callback for each push
+        if (isHttp2 && !watcher.isDone() && ctx.channel().isActive()) {
+            logger.info("已经发送了一次http2响应，重新注册 group {} term {}", watcher.getGroup(), watcher.getTerm());
             registryWatcher(watcher);
         }
     }
@@ -139,6 +168,8 @@ public class ClusterWatcherManager implements ClusterChangeListener {
         }
         ChannelHandlerContext ctx = context.getContext();
         if (!ctx.channel().isActive()) {
+            // Mark watcher as done to prevent infinite loop in notifyWatcher -> registryWatcher -> notifyWatcher
+            watcher.setDone(true);
             HTTP2_HEADERS_SENT.remove(watcher);
             logger.warn(
                     "Netty channel is not active for watcher on group {}, cannot send response.", watcher.getGroup());
@@ -165,14 +196,41 @@ public class ClusterWatcherManager implements ClusterChangeListener {
         }
     }
 
+    // 第一次接收到term是1的请求的时候会注册，但是没有报warn日志。第二次报错的是term为2的日志
     public void registryWatcher(Watcher<HttpContext> watcher) {
+        // Check if watcher is already done or channel is not active
+        if (watcher.isDone()) {
+            return;
+        }
+        
+        HttpContext context = watcher.getAsyncContext();
+        if (context != null && context.getContext() != null) {
+            ChannelHandlerContext ctx = context.getContext();
+            if (!ctx.channel().isActive()) {
+                // Channel is not active, mark watcher as done to prevent infinite loop
+                watcher.setDone(true);
+                HTTP2_HEADERS_SENT.remove(watcher);
+                logger.warn(
+                        "Channel-registry is not active when registering watcher on group {} term {}, marking as done.",
+                        watcher.getGroup(), watcher.getTerm());
+                return;
+            }
+        }
+        
         String group = watcher.getGroup();
         Long term = GROUP_UPDATE_TIME.get(group);
         if (term == null || watcher.getTerm() >= term) {
             WATCHERS.computeIfAbsent(group, value -> new ConcurrentLinkedQueue<>())
                     .add(watcher);
         } else {
-            notifyWatcher(watcher);
+            // Only notify if channel is still active
+            if (context != null && context.getContext() != null 
+                && context.getContext().channel().isActive()) {
+                notifyWatcher(watcher);
+            } else {
+                watcher.setDone(true);
+                HTTP2_HEADERS_SENT.remove(watcher);
+            }
         }
     }
 }

@@ -328,17 +328,39 @@ public class HttpClientUtil {
             @Override
             public void onResponse(Call call, Response response) {
                 try {
+                    LOGGER.info("收到response回调，开始执行回调逻辑");
                     callback.onSuccess(response);
-                } finally {
-                    response.close();
+                } catch (Exception e) {
+                    // If callback throws exception, close response to prevent resource leak
+                    try {
+                        LOGGER.info("关闭响应流");
+                        response.close();
+                    } catch (Exception closeException) {
+                        // Ignore close exception
+                    }
                 }
+                // IMPORTANT: Do NOT close the response here automatically
+                // 
+                // For HTTP/2 streaming push scenarios (like watch requests):
+                // 1. OkHttpClient's onResponse callback is only triggered once when stream ends (endStream=true)
+                // 2. If server sends multiple data frames with endStream=false, client won't receive callbacks for each frame
+                // 3. However, keeping the response open allows the server to continue sending data frames
+                // 4. The callback handler should manually close the response when all expected responses are received
+                //
+                // For watch requests: The callback should manually close the response after all pushes are received
+                // For regular requests: The callback should close the response immediately after processing
+                //
+                // Note: This may cause resource leaks if the callback doesn't close the response properly
+                // Make sure to close the response in the callback handler or use try-with-resources
             }
 
             @Override
             public void onFailure(Call call, IOException e) {
                 if (call.isCanceled()) {
+                    LOGGER.info("执行取消");
                     callback.onCancelled();
                 } else {
+                    LOGGER.info("执行失败");
                     callback.onFailure(e);
                 }
             }

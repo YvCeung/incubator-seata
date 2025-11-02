@@ -18,6 +18,7 @@ package org.apache.seata.server.controller;
 
 import okhttp3.Protocol;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.apache.http.HttpStatus;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -34,10 +35,14 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -53,6 +58,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ClusterControllerTest extends BaseSpringBootTest {
+
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+
 
     private static Environment environment;
     private static int port;
@@ -199,6 +207,237 @@ class ClusterControllerTest extends BaseSpringBootTest {
 
     @Test
     @Order(5)
+    void watch_withHttp2_StreamPush() throws Exception {
+        // Use thread-safe counters to track responses
+        java.util.concurrent.atomic.AtomicInteger okCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger notModifiedCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger unexpectedStatusCodeCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        
+        // Expect 2 OK responses (from 2 cluster change events) + 1 NOT_MODIFIED (timeout)
+        CountDownLatch latch = new CountDownLatch(3);
+        Map<String, String> header = new HashMap<>();
+        header.put(HTTP.CONTENT_TYPE, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
+        Map<String, String> param = new HashMap<>();
+        param.put("default-test", "1");
+
+        ApplicationEventPublisher eventPublisher = 
+            (ApplicationEventPublisher) ObjectHolder.INSTANCE.getObject(OBJECT_KEY_SPRING_APPLICATION_CONTEXT);
+
+        // Simulate first cluster change event after 2 seconds
+        Thread firstEventThread = new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            eventPublisher.publishEvent(new ClusterChangeEvent(this, "default-test", 2, true));
+        });
+        firstEventThread.start();
+
+        // Simulate second cluster change event after 4 seconds
+        Thread secondEventThread = new Thread(() -> {
+            try {
+                Thread.sleep(4000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            eventPublisher.publishEvent(new ClusterChangeEvent(this, "default-test", 3, true));
+        });
+        secondEventThread.start();
+
+        HttpCallback<Response> callback = new HttpCallback<Response>() {
+            @Override
+            public void onSuccess(Response response) {
+                try {
+                    assertNotNull(response, "Response should not be null");
+                    Assertions.assertEquals(
+                        Protocol.H2_PRIOR_KNOWLEDGE, 
+                        response.protocol(), 
+                        "Should use HTTP/2 protocol");
+                    
+                    int statusCode = response.code();
+                    if (HttpStatus.SC_OK == statusCode) {
+                        okCount.incrementAndGet();
+                        System.out.println("收到了" + okCount.get() + "次推送");
+                        latch.countDown();
+                    } else if (HttpStatus.SC_NOT_MODIFIED == statusCode) {
+                        notModifiedCount.incrementAndGet();
+                        latch.countDown();
+                    } else {
+                        unexpectedStatusCodeCount.incrementAndGet();
+                        fail("Unexpected status code: " + statusCode);
+                        latch.countDown();
+                    }
+                } catch (Exception e) {
+                    fail("Error processing response: " + e.getMessage(), e);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                fail("HTTP/2 request should not fail: " + t.getMessage(), t);
+            }
+
+            @Override
+            public void onCancelled() {
+                fail("HTTP/2 request should not be cancelled");
+            }
+        };
+
+        // Send watch request with 15 seconds timeout
+        // Expect to receive: 2 OK responses (from cluster changes) + 1 NOT_MODIFIED (timeout)
+        HttpClientUtil.doPostWithHttp2(
+            "http://127.0.0.1:" + port + "/metadata/v1/watch?timeout=15000", 
+            param, 
+            header, 
+            callback, 30);
+        
+        // Wait for all responses (with reasonable timeout)
+        boolean completed = latch.await(20, TimeUnit.SECONDS);
+        assertTrue(completed, "Should receive all expected responses within timeout");
+        
+        // Verify we received exactly 2 OK responses from cluster change events
+        Assertions.assertEquals(
+            2, 
+            okCount.get(), 
+            "Should receive 2 OK responses from 2 cluster change events");
+        
+        // Verify we received exactly 1 NOT_MODIFIED response from timeout
+        Assertions.assertEquals(
+            1, 
+            notModifiedCount.get(), 
+            "Should receive 1 NOT_MODIFIED response from timeout");
+        
+        // Verify no unexpected status codes
+        Assertions.assertEquals(
+            0, 
+            unexpectedStatusCodeCount.get(), 
+            "Should not receive any unexpected status codes");
+    }
+
+    @Test
+    @Order(5)
+    void watch_withHttp2_SingleEvent_StreamPush() throws Exception {
+        // Use thread-safe counters to track responses
+        java.util.concurrent.atomic.AtomicInteger okCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger notModifiedCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicInteger unexpectedStatusCodeCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+        // Expect 1 OK responses (from 1 cluster change events) + 1 NOT_MODIFIED (timeout)
+        CountDownLatch latch = new CountDownLatch(2);
+        Map<String, String> header = new HashMap<>();
+        header.put(HTTP.CONTENT_TYPE, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
+        Map<String, String> param = new HashMap<>();
+        param.put("default-test", "1");
+
+        ApplicationEventPublisher eventPublisher =
+                (ApplicationEventPublisher) ObjectHolder.INSTANCE.getObject(OBJECT_KEY_SPRING_APPLICATION_CONTEXT);
+
+        // Simulate first cluster change event after 2 seconds
+        Thread firstEventThread = new Thread(() -> {
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            eventPublisher.publishEvent(new ClusterChangeEvent(this, "default-test", 2, true));
+        });
+        firstEventThread.start();
+
+        HttpCallback<Response> callback = new HttpCallback<Response>() {
+            @Override
+            public void onSuccess(Response response) throws IOException {
+
+                try (ResponseBody responseBody = response.body()) {
+                    InputStream inputStream = responseBody.byteStream();
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+
+                    // 这里每次读取都对应着底层数据帧的到达！
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        // 每次有数据可读时执行你的回调逻辑
+                        onDataChunkReceived(buffer, bytesRead);
+                    }
+                }
+                try {
+                    assertNotNull(response, "Response should not be null");
+                    Assertions.assertEquals(
+                            Protocol.H2_PRIOR_KNOWLEDGE,
+                            response.protocol(),
+                            "Should use HTTP/2 protocol");
+
+                    int statusCode = response.code();
+                    if (HttpStatus.SC_OK == statusCode) {
+                        okCount.incrementAndGet();
+                        logger.info("收到ok一次");
+                        latch.countDown();
+                    } else if (HttpStatus.SC_NOT_MODIFIED == statusCode) {
+                        logger.info("收到304一次");
+                        notModifiedCount.incrementAndGet();
+                        latch.countDown();
+                    } else {
+                        unexpectedStatusCodeCount.incrementAndGet();
+                        fail("Unexpected status code: " + statusCode);
+                        latch.countDown();
+                    }
+                } catch (Exception e) {
+                    fail("Error processing response: " + e.getMessage(), e);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                fail("HTTP/2 request should not fail: " + t.getMessage(), t);
+            }
+
+            @Override
+            public void onCancelled() {
+                fail("HTTP/2 request should not be cancelled");
+            }
+        };
+
+        // Send watch request with 15 seconds timeout
+        // Expect to receive: 2 OK responses (from cluster changes) + 1 NOT_MODIFIED (timeout)
+        HttpClientUtil.doPostWithHttp2(
+                "http://127.0.0.1:" + port + "/metadata/v1/watch?timeout=5000",
+                param,
+                header,
+                callback, 30);
+
+        // Wait for all responses (with reasonable timeout)
+        boolean completed = latch.await(20, TimeUnit.SECONDS);
+        assertTrue(completed, "Should receive all expected responses within timeout");
+
+        // Verify we received exactly 2 OK responses from cluster change events
+        Assertions.assertEquals(
+                1,
+                okCount.get(),
+                "Should receive 2 OK responses from 2 cluster change events");
+
+        // Verify we received exactly 1 NOT_MODIFIED response from timeout
+        Assertions.assertEquals(
+                1,
+                notModifiedCount.get(),
+                "Should receive 1 NOT_MODIFIED response from timeout");
+
+        // Verify no unexpected status codes
+        Assertions.assertEquals(
+                0,
+                unexpectedStatusCodeCount.get(),
+                "Should not receive any unexpected status codes");
+    }
+
+    private void onDataChunkReceived(byte[] chunk, int length) {
+        // 这里就是你要的"收到数据帧就执行回调逻辑"
+        System.out.println("Received " + length + " bytes");
+        // 处理分块数据...
+    }
+
+    @Test
+    @Order(6)
     void testXssFilterBlocked_queryParam() throws Exception {
         String malicious = "<script>alert('xss')</script>";
         Map<String, String> header = new HashMap<>();
@@ -215,7 +454,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     void testXssFilterBlocked_queryParam_withGetHttp2() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -254,7 +493,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     void testXssFilterBlocked_formParam_withPostHttp2() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -291,7 +530,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     void testXssFilterBlocked_bodyParam_withPostHttp2() throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -326,7 +565,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     void testXssFilterBlocked_formParam() throws Exception {
         Map<String, String> headers = new HashMap<>();
         headers.put(HTTP.CONTENT_TYPE, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
@@ -342,7 +581,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     void testXssFilterBlocked_jsonBody() throws Exception {
         Map<String, String> headers = new HashMap<>();
         headers.put(HTTP.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
@@ -357,7 +596,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     void testXssFilterBlocked_headerParam() throws Exception {
         Map<String, String> headers = new HashMap<>();
         headers.put(HTTP.CONTENT_TYPE, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
@@ -374,7 +613,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     void testXssFilterBlocked_multiSource() throws Exception {
         Map<String, String> headers = new HashMap<>();
         headers.put(HTTP.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
@@ -394,7 +633,7 @@ class ClusterControllerTest extends BaseSpringBootTest {
     }
 
     @Test
-    @Order(13)
+    @Order(14)
     void testXssFilterBlocked_formParamWithUserCustomKeyWords() throws Exception {
         Map<String, String> headers = new HashMap<>();
         headers.put(HTTP.CONTENT_TYPE, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());

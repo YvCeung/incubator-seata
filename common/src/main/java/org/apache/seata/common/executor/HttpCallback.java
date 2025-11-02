@@ -16,6 +16,8 @@
  */
 package org.apache.seata.common.executor;
 
+import java.io.IOException;
+
 /**
  * The interface HttpCallback.
  *
@@ -28,7 +30,7 @@ public interface HttpCallback<T> {
      *
      * @param result the result of the HTTP request
      */
-    void onSuccess(T result);
+    void onSuccess(T result) throws IOException;
 
     /**
      * Called when the HTTP request fails.
