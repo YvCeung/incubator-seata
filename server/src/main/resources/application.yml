@@ -46,12 +46,33 @@ logging:
 seata:
   config:
     # support: nacos, consul, apollo, zk, etcd3
-    type: file
+    type: nacos
+    nacos:
+      server-addr: 127.0.0.1:8848
+      namespace: 3688929d-ed43-484d-b01c-1de748697ea4
+      group: seata
+      context-path:
+      ##1.The following configuration is for the open source version of Nacos
+      username:
+      password:
+      ##2.The following configuration is for the MSE Nacos on aliyun
+      #access-key:
+      #secret-key:
+      ##3.The following configuration is used to deploy on Aliyun ECS or ACK without authentication
+      #ram-role-name:
+      data-id: seataServer.properties
   registry:
     # support: nacos, eureka, redis, zk, consul, etcd3, sofa, seata
-    type: file
+    type: seata
+    seata:
+      server-addr: 127.0.0.1:8081
+      cluster: default
+      namespace: public
+      heartbeat-period: 5000
+      username: seata
+      password: seata
   store:
     # support: file 、 db 、 redis 、 raft
-    mode: file
+    mode: db
   #  server:
   #    service-port: 8091 #If not configured, the default is '${server.port} + 1000'
