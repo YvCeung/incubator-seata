@@ -222,7 +222,6 @@ public abstract class AbstractCore implements Core {
                 branchSession.getClientId(),
                 request,
                 branchSession.isAT(),
-                branchSession.getXid(),
                 branchSession.getBranchType());
         return response.getBranchStatus();
     }
@@ -257,7 +256,6 @@ public abstract class AbstractCore implements Core {
                 branchSession.getClientId(),
                 request,
                 branchSession.isAT(),
-                branchSession.getXid(),
                 branchSession.getBranchType());
         return response.getBranchStatus();
     }

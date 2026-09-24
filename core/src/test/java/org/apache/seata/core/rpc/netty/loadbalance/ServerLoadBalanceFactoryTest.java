@@ -17,14 +17,72 @@
 package org.apache.seata.core.rpc.netty.loadbalance;
 
 import org.apache.seata.common.loader.EnhancedServiceLoader;
+import org.apache.seata.common.loader.EnhancedServiceNotFoundException;
+import org.apache.seata.config.Configuration;
+import org.apache.seata.config.ConfigurationFactory;
 import org.apache.seata.core.model.BranchType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 /**
  * Test for ServerLoadBalanceFactory.
  */
 public class ServerLoadBalanceFactoryTest {
+
+    private Configuration configuration;
+    private MockedStatic<ConfigurationFactory> factory;
+
+    @BeforeEach
+    public void setUp() {
+        configuration = Mockito.mock(Configuration.class);
+        factory = Mockito.mockStatic(ConfigurationFactory.class);
+        factory.when(ConfigurationFactory::getInstance).thenReturn(configuration);
+        // Reset both cached resolutions using an explicitly unconfigured source.
+        ServerLoadBalanceFactory.getInstance(BranchType.AT);
+        ServerLoadBalanceFactory.getInstance(BranchType.TCC);
+    }
+
+    @AfterEach
+    public void tearDown() {
+        factory.close();
+    }
+
+    @Test
+    public void testConfigurationChangesAndInstanceReuse() {
+        Mockito.when(configuration.getConfig(ServerLoadBalanceFactory.SERVER_LB_AT_TYPE))
+                .thenReturn("RoundRobinLoadBalance");
+        ServerLoadBalance first = ServerLoadBalanceFactory.getInstance(BranchType.AT);
+        Assertions.assertInstanceOf(ServerRoundRobinLoadBalance.class, first);
+        Assertions.assertSame(first, ServerLoadBalanceFactory.getInstance(BranchType.AT));
+        Assertions.assertNull(ServerLoadBalanceFactory.getInstance(BranchType.TCC));
+        Mockito.when(configuration.getConfig(ServerLoadBalanceFactory.SERVER_LB_AT_TYPE))
+                .thenReturn(" LeastActiveLoadBalance ");
+        Assertions.assertInstanceOf(
+                ServerLeastActiveLoadBalance.class, ServerLoadBalanceFactory.getInstance(BranchType.AT));
+        Mockito.when(configuration.getConfig(ServerLoadBalanceFactory.SERVER_LB_AT_TYPE))
+                .thenReturn("  ");
+        Assertions.assertNull(ServerLoadBalanceFactory.getInstance(BranchType.AT));
+        Mockito.when(configuration.getConfig(ServerLoadBalanceFactory.SERVER_LB_AT_TYPE))
+                .thenReturn("RoundRobinLoadBalance");
+        Assertions.assertSame(first, ServerLoadBalanceFactory.getInstance(BranchType.AT));
+    }
+
+    @Test
+    public void testInvalidConfigurationFallsBackAndCanRecover() {
+        Mockito.when(configuration.getConfig(ServerLoadBalanceFactory.SERVER_LB_TCC_TYPE))
+                .thenReturn("NonExistentLoadBalance");
+        Assertions.assertNull(ServerLoadBalanceFactory.getInstance(BranchType.TCC));
+        Assertions.assertNull(ServerLoadBalanceFactory.getInstance(BranchType.TCC));
+        Mockito.when(configuration.getConfig(ServerLoadBalanceFactory.SERVER_LB_TCC_TYPE))
+                .thenReturn("RandomLoadBalance");
+        Assertions.assertInstanceOf(
+                ServerRandomLoadBalance.class, ServerLoadBalanceFactory.getInstance(BranchType.TCC));
+        Assertions.assertNull(ServerLoadBalanceFactory.getInstance(null));
+    }
 
     @Test
     public void testXaReturnsNull() {
@@ -78,7 +136,8 @@ public class ServerLoadBalanceFactoryTest {
     public void testSpiLoadInvalidTypeThrowsException() {
         // Loading a non-existent LB type should throw EnhancedServiceNotFoundException
         Assertions.assertThrows(
-                Exception.class, () -> EnhancedServiceLoader.load(ServerLoadBalance.class, "NonExistentLoadBalance"));
+                EnhancedServiceNotFoundException.class,
+                () -> EnhancedServiceLoader.load(ServerLoadBalance.class, "NonExistentLoadBalance"));
     }
 
     @Test

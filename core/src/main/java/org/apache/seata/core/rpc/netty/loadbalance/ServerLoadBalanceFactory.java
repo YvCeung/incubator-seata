@@ -23,12 +23,15 @@ import org.apache.seata.core.model.BranchType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
 /**
  * Server side load balance factory.
  * Only AT and TCC branch types support server-side load balancing.
- * XA and SAGA are explicitly excluded because:
- *  XA: second-phase operations are bound to the local database connection of the original RM
- *  SAGA: state machine execution context is held in memory with no distributed lock protection
+ * XA and SAGA retain their existing original-instance preference and recovery behavior.
+ * TCC load balancing must only be enabled when confirm/cancel can run on another instance.
  */
 public final class ServerLoadBalanceFactory {
 
@@ -45,6 +48,8 @@ public final class ServerLoadBalanceFactory {
      * Configuration key for TCC mode load balance type.
      */
     public static final String SERVER_LB_TCC_TYPE = SERVER_LB_PREFIX + "tcc.type";
+
+    private static final ConcurrentMap<BranchType, ResolvedStrategy> STRATEGIES = new ConcurrentHashMap<>();
 
     private ServerLoadBalanceFactory() {}
 
@@ -65,14 +70,29 @@ public final class ServerLoadBalanceFactory {
             return null;
         }
 
-        String typeKey = buildTypeKey(branchType);
-        String type = ConfigurationFactory.getInstance().getConfig(typeKey);
+        String typeKey = branchType == BranchType.AT ? SERVER_LB_AT_TYPE : SERVER_LB_TCC_TYPE;
+        // ConfigurationFactory already caches values and refreshes them through configuration listeners.
+        String configuredType = ConfigurationFactory.getInstance().getConfig(typeKey);
+        String type = StringUtils.isBlank(configuredType) ? null : configuredType.trim();
+        ResolvedStrategy cached = STRATEGIES.get(branchType);
+        if (cached != null && Objects.equals(cached.type, type)) {
+            return cached.strategy;
+        }
+        return STRATEGIES.compute(branchType, (key, current) -> {
+                    if (current != null && Objects.equals(current.type, type)) {
+                        return current;
+                    }
+                    return new ResolvedStrategy(type, loadStrategy(type, branchType));
+                })
+                .strategy;
+    }
 
-        if (StringUtils.isBlank(type)) {
+    private static ServerLoadBalance loadStrategy(String type, BranchType branchType) {
+        if (type == null) {
             return null;
         }
-
         try {
+            // LoadLevel defaults to Scope.SINGLETON: switching back also preserves a strategy's state.
             return EnhancedServiceLoader.load(ServerLoadBalance.class, type);
         } catch (Exception e) {
             LOGGER.error(
@@ -84,7 +104,13 @@ public final class ServerLoadBalanceFactory {
         }
     }
 
-    private static String buildTypeKey(BranchType branchType) {
-        return SERVER_LB_PREFIX + branchType.name().toLowerCase() + ".type";
+    private static final class ResolvedStrategy {
+        private final String type;
+        private final ServerLoadBalance strategy;
+
+        private ResolvedStrategy(String type, ServerLoadBalance strategy) {
+            this.type = type;
+            this.strategy = strategy;
+        }
     }
 }

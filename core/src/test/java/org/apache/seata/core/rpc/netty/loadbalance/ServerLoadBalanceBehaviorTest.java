@@ -65,8 +65,8 @@ public class ServerLoadBalanceBehaviorTest {
             }
         }
         // RoundRobin should distribute evenly
-        Assertions.assertEquals(50, c1Count);
-        Assertions.assertEquals(50, c2Count);
+        Assertions.assertEquals(100, c1Count + c2Count);
+        Assertions.assertTrue(Math.abs(c1Count - c2Count) <= 1);
     }
 
     @Test

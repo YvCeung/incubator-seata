@@ -53,13 +53,12 @@ public interface RemotingServer {
      * @param clientId   rm client id
      * @param msg        transaction message {@code org.apache.seata.core.protocol}
      * @param tryOtherApp try other app
-     * @param xid global transaction xid
      * @param branchType branch type
      * @return client result message
      * @throws TimeoutException TimeoutException
      */
     default Object sendSyncRequest(
-            String resourceId, String clientId, Object msg, boolean tryOtherApp, String xid, BranchType branchType)
+            String resourceId, String clientId, Object msg, boolean tryOtherApp, BranchType branchType)
             throws TimeoutException, IOException {
         return sendSyncRequest(resourceId, clientId, msg, tryOtherApp);
     }
